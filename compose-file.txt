@@ -1,0 +1,74 @@
+# https://lucassardois.medium.com/handling-iot-data-with-mqtt-telegraf-influxdb-and-grafana-5a431480217
+
+version: "3.8"
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    restart: always
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - /home/psp/portainer-iot/mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - /home/psp/portainer-iot/mosquitto/config/passwd:/etc/mosquitto/passwd
+      - /home/psp/portainer-iot/mosquitto/data:/mosquitto/data/
+      - /home/psp/portainer-iot/mosquitto/log:/mosquitto/log/
+
+
+  influxdb:
+    image: influxdb
+    restart: always
+
+    volumes:
+      - /home/psp/portainer-iot/influxdb/influxdb-data:/var/lib/influxdb
+    ports:
+      - "8087:8086"
+      - "8089:8089/udp"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_BUCKET=Mqtt-Sensors
+      - DOCKER_INFLUXDB_INIT_USERNAME=Admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=9546595465Admin!
+      - DOCKER_INFLUXDB_INIT_ORG=Umbrella
+      - TZ=Europe/Moscow
+
+  telegraf:
+    image: telegraf
+    restart: always
+    volumes:
+      - /home/psp/portainer-iot/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+      - /:/hostfs:ro # to monitor docker-vm
+    depends_on:
+      - mosquitto
+      - influxdb    
+    environment:
+        - HOST_ETC=/hostfs/etc
+        - HOST_PROC=/hostfs/proc
+        - HOST_SYS=/hostfs/sys
+        - HOST_VAR=/hostfs/var
+        - HOST_RUN=/hostfs/run
+        - HOST_MOUNT_PREFIX=/hostfs
+
+  
+  grafana:
+    image: grafana/grafana
+    restart: always
+    ports:
+      - "3000:3000"
+
+    volumes:
+      - /home/psp/portainer-iot/grafana-data:/var/lib/grafana
+
+    depends_on:
+      - influxdb
+    environment:
+      GF_DASHBOARDS_MIN_REFRESH_INTERVAL: 1s
+
+
+networks:
+  bridge:
+
+volumes:
+  influxdb-data:
+  grafana-data:
