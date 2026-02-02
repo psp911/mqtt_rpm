@@ -14,18 +14,20 @@
 
 #include <WiFi.h>
 #include <MQTT.h>
+#include <ArduinoJson.h>
+
 
 // #include <MQTTClient.h>
 
 //const char ssid[] = "OnePlus 10 Pro 5G-76e8";
 //const char pass[] = "g3se674x";
 
-// const char ssid[] = "4G-UFI-C70D";
-// const char pass[] = "9546595465Hotspot!";
+const char ssid[] = "4G-UFI-C70D";
+const char pass[] = "9546595465Hotspot!";
 
 
-const char ssid[] = "HOMELAB-10";
-const char pass[] = "9546595465Homelab!";
+// const char ssid[] = "HOMELAB-10";
+// const char pass[] = "9546595465Homelab!";
 
 
 
@@ -40,8 +42,8 @@ const char MQTT_PASSWORD[] = "9546595465Psp!"; // CHANGE IT IF REQUIRED, empty i
  */
 
 //const char MQTT_BROKER_ADRRESS[] = "91.149.232.230";  // CHANGE TO MQTT BROKER'S ADDRESS
-// const char MQTT_BROKER_ADRRESS[] = "192.168.100.237"; // CHANGE TO MQTT BROKER'S ADDRESS
-const char MQTT_BROKER_ADRRESS[] = "192.168.10.72"; // CHANGE TO MQTT BROKER'S ADDRESS
+const char MQTT_BROKER_ADRRESS[] = "192.168.100.237"; // CHANGE TO MQTT BROKER'S ADDRESS
+// const char MQTT_BROKER_ADRRESS[] = "192.168.10.72"; // CHANGE TO MQTT BROKER'S ADDRESS
 const int MQTT_PORT = 1883;
 //const int MQTT_PORT = 8883;
 const char MQTT_CLIENT_ID[] = "Umbrella-esp32-001"; // CHANGE IT AS YOU DESIRE
@@ -124,7 +126,7 @@ const int drebezg_time = 5000;       // Длина времени на дреб�
 // Прерывание: срабатывает при появлении магнита
 void IRAM_ATTR handleInterrupt() {
   turnover = micros()-last_turnover; //Вычисляет время между двумя обротами (почему двумя а не одним??)
-  if (turnover >drebezg_time)
+  if (turnover > drebezg_time)
   {
     turnover_time=turnover;
     Serial.println(turnover_time);
@@ -291,6 +293,23 @@ void loop() {
 
 // Датчик инфракрасный - КОНЕЦ
 
+
+
+  // Создание JSON документа
+  StaticJsonDocument<200> doc;
+  doc["sensor"] = "esp32_01";
+  doc["temp"] = 25.5; // Пример данных
+  doc["humidity"] = 60;
+
+  char jsonBuffer[200];
+  serializeJson(doc, jsonBuffer); // Преобразование в строку
+
+  // Публикация в MQTT топик
+  client.publish("UmblellaEsp32/data", jsonBuffer);
+  
+
+
+
      pulseCount = 0;            // Сбрасываем счетчик
      pulseCount_ditry = 0;
 
@@ -299,12 +318,8 @@ void loop() {
 
      lastMillis_rpm = millis(); // Обновляем время
      count_fps=0;               // Сбрасываем счетчик fps
-
-
-     attachInterrupt(digitalPinToInterrupt(hallPin), handleInterrupt, FALLING); // Включаем прерывания
-  
-  
-     attachInterrupt(digitalPinToInterrupt(ir_Pin), ir_handleInterrupt, FALLING); // Включаем прерывания
+     attachInterrupt(digitalPinToInterrupt(hallPin), handleInterrupt, FALLING); // Включаем прерывания датчика Холла  
+     attachInterrupt(digitalPinToInterrupt(ir_Pin), ir_handleInterrupt, FALLING); // Включаем прерывания Инфракрасного датчика
 
 
    }
