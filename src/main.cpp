@@ -58,8 +58,8 @@ const int hallPin = 25;     // Пин, к которому подключен DO
 
 const int ledPin = 2;       // Встроенный светодиод (или внешний)
 int hallState = 0;          // Состояние датчика Холла
-volatile unsigned int pulseCount = 0; // Счетчик импульсов датчика Холла
-volatile unsigned int pulseCount_ditry = 0; // Счетчик импульсов датчика Холла c Дребезгом
+volatile unsigned int holl_pulseCount = 0; // Счетчик импульсов датчика Холла
+volatile unsigned int holl_pulseCount_ditry = 0; // Счетчик импульсов датчика Холла c Дребезгом
 unsigned long lastMillis_rpm = 0;
 int rpm = 0; // Оборотов в минуту (float)
 
@@ -131,9 +131,9 @@ void IRAM_ATTR handleInterrupt() {
     turnover_time=turnover;
     Serial.println(turnover_time);
     last_turnover=micros();
-    pulseCount++;
+    holl_pulseCount++;
   }
-  pulseCount_ditry++;
+  holl_pulseCount_ditry++;
 }
 
 volatile unsigned long ir_turnover = 0;
@@ -229,16 +229,16 @@ void loop() {
 
 
      // RPM = (импульсы за сек) * 60
-     rpm = (pulseCount * 60); 
+     rpm = (holl_pulseCount * 60); 
  
      Serial.print("RPM: ");
      Serial.println(rpm);
  
-     Serial.print("pulseCount: ");
-     Serial.println(pulseCount);
+     Serial.print("holl_pulseCount: ");
+     Serial.println(holl_pulseCount);
  
-     Serial.print("pulseCount_ditry: ");
-     Serial.println(pulseCount_ditry);
+     Serial.print("holl_pulseCount_ditry: ");
+     Serial.println(holl_pulseCount_ditry);
 
      Serial.print("count_fps: ");
      Serial.println(count_fps);
@@ -258,10 +258,10 @@ void loop() {
 
      sprintf(buffer, "%i", rpm); // %lu для unsigned long
      client.publish("/rpm", buffer);
-     sprintf(buffer, "%d", pulseCount); // %lu для unsigned long
-     client.publish("/pulseCount", buffer); 
-     sprintf(buffer, "%d", pulseCount_ditry); // %lu для unsigned long
-     client.publish("/pulseCount_ditry", buffer);    
+     sprintf(buffer, "%d", holl_pulseCount); // %lu для unsigned long
+     client.publish("/holl_pulseCount", buffer); 
+     sprintf(buffer, "%d", holl_pulseCount_ditry); // %lu для unsigned long
+     client.publish("/holl_pulseCount_ditry", buffer);    
 
 
 
@@ -279,7 +279,7 @@ void loop() {
      Serial.print("IR_pulseCount: ");
      Serial.println(ir_pulseCount);
  
-     Serial.print("IR_pulseCount_ditry: ");
+     Serial.print("ir_pulseCount_ditry: ");
      Serial.println(ir_pulseCount_ditry);
 
      sprintf(buffer, "%i", ir_rpm); // %lu для unsigned long
@@ -298,22 +298,26 @@ void loop() {
   // Создание JSON документа
   StaticJsonDocument<200> doc;
   doc["sensor"] = "esp32_01";
-  doc["temp"] = 25.5; // Пример данных
-  doc["humidity"] = 60;
+  doc["count_fps"] = count_fps; 
+  doc["lastMillis_rpm"] = lastMillis_rpm; 
+  doc["holl_pulseCount"] = holl_pulseCount;
+  doc["holl_pulseCount_ditry"] = holl_pulseCount_ditry;
+  doc["ir_pulseCount"] = ir_pulseCount;
+  doc["ir_pulseCount_ditry"] = ir_pulseCount_ditry;
 
   char jsonBuffer[200];
   serializeJson(doc, jsonBuffer); // Преобразование в строку
 
   // Публикация в MQTT топик
-  client.publish("UmblellaEsp32/data", jsonBuffer);
+  client.publish("/UmblellaEsp32/data", jsonBuffer);
   
 
 
 
-     pulseCount = 0;            // Сбрасываем счетчик
-     pulseCount_ditry = 0;
+     holl_pulseCount = 0;            // Сбрасываем счетчик датчика Холла
+     holl_pulseCount_ditry = 0;
 
-     ir_pulseCount = 0;            // Сбрасываем счетчик
+     ir_pulseCount = 0;            // Сбрасываем счетчик датчика инфракрасного
      ir_pulseCount_ditry = 0;
 
      lastMillis_rpm = millis(); // Обновляем время
