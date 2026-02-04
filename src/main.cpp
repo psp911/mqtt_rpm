@@ -16,6 +16,38 @@
 #include <MQTT.h>
 #include <ArduinoJson.h>
 
+#include "HX711.h"       // Библиотека для работы с АЦП HX711
+// Создание объектов
+HX711 scale;                      // Объект для работы с тензодатчиком
+// Определение пинов подключения
+#define DT_PIN 21          // Пин DATA (DT) HX711
+#define SCK_PIN 22        // Пин CLOCK (SCK) HX711
+#define BUTTON_PIN 0  // Пин кнопки обнуления (GPIO0 - обычно кнопка BOOT на ESP32)
+// Калибровочные параметры
+float calibration_factor = 7.60; // Калибровочный коэффициент (подбирается экспериментально)
+float units;                       // Переменная для измерений в граммах
+float ounces;                   // Переменная для измерений в унциях
+
+float Power_Watt_ir;                   // Мощность в Ваттах, инфракрасный датчик
+
+// Функция обнуления весов (тарирование)
+void tareScale()
+{
+  // tft.fillScreen(TFT_BLACK);        // Очистка экрана
+  // tft.setTextColor(TFT_GREEN); // Зеленый цвет для лучшей читаемости
+  // tft.setTextSize(1);
+  // tft.setCursor(10, 10);
+  // tft.println("Taring...");              // Сообщение о процессе тарирования
+  scale.tare();   // Сброс текущего веса в 0
+  Serial.println(".........Сброс текущего веса в 0..........");
+  // delay(1000);   // Задержка для стабилизации
+  // tft.fillScreen(TFT_BLACK);        // Очистка экрана
+  // tft.setTextColor(TFT_GREEN); // Зеленый цвет для лучшей читаемости
+  // tft.setTextSize(1);
+  // tft.setCursor(10, 10);
+  // tft.println("Tared!"); // Сообщение о процессе тарирования
+  // delay(1000);           // Пауза перед возвратом к измерениям
+}
 
 // #include <MQTTClient.h>
 
@@ -54,9 +86,6 @@ const char MQTT_PASSWORD[] = "telegraf"; // CHANGE IT IF REQUIRED, empty if not 
 //Внешний датчик Холла
 const int hallPin = 25;     // Пин, к которому подключен DO датчика
 
-
-
-const int ledPin = 2;       // Встроенный светодиод (или внешний)
 int hallState = 0;          // Состояние датчика Холла
 volatile unsigned int holl_pulseCount = 0; // Счетчик импульсов датчика Холла
 volatile unsigned int holl_pulseCount_ditry = 0; // Счетчик импульсов датчика Холла c Дребезгом
@@ -162,21 +191,15 @@ void setup() {
   //Serial.begin(115200);
   Serial.begin(9600);
   WiFi.begin(ssid, pass);
-
   esp_log_level_set("wifi", ESP_LOG_VERBOSE);
-
   Serial.println("\nПодключено к Wi-Fi!");
-
   Serial.print("IP адрес: ");
   Serial.println(WiFi.localIP());
-
-
-
   client.begin(MQTT_BROKER_ADRRESS, net);  
   client.onMessage(messageReceived);
   connect();
 
-  pinMode(ledPin, OUTPUT);
+  // pinMode(ledPin, OUTPUT);
   pinMode(hallPin, INPUT); // Датчик A3144 выдает логический сигнал
   pinMode(ir_Pin, INPUT); // Датчик  выдает логический сигнал
 
@@ -186,6 +209,22 @@ void setup() {
   //pinMode(hallPin, INPUT_PULLUP); // Используем встроенную подтяжку, если модуль без нее
  // attachInterrupt(digitalPinToInterrupt(ir_Pin), ir_handleInterrupt, FALLING); // FALLING - переход с HIGH на LOW
 
+  // Далее для тензодатчика
+   pinMode(BUTTON_PIN, INPUT_PULLUP); // Подтяжка к питанию (кнопка замыкает на GND)
+  // // Инициализация TFT-дисплея
+  // tft.init();                  // Инициализация дисплея
+  // tft.setRotation(3);          // Установка ориентации (3 = 180 градусов)
+  // tft.fillScreen(TFT_BLACK);   // Очистка экрана
+  // tft.setTextColor(TFT_GREEN); // Зеленый цвет для лучшей читаемости
+  // tft.setTextSize(1);
+  // tft.setCursor(10, 10);
+  // tft.println("Init..."); // Сообщение о инициализации
+  // // Инициализация весов
+  scale.begin(DT_PIN, SCK_PIN);        // Инициализация HX711 с указанием пинов
+  scale.set_scale();                             // Установка масштаба (без коэффициента)
+  scale.tare();                                     // Первоначальное обнуление веса
+  scale.set_scale(calibration_factor); // Установка калибровочного коэффициента
+  
 
 }
 
@@ -199,7 +238,8 @@ void loop() {
 
   //delay(500);  // <- fixes some issues with WiFi stability
   count_fps=count_fps+1; // счетчик итераций
-  
+  Power_Watt_ir = 0; // Сброс мощности
+
   // Временной флаг для соединения по WiFi - не по WiFi а по MQTT
   lastMillis_wifi = millis();
 
@@ -223,7 +263,7 @@ void loop() {
 
      detachInterrupt(digitalPinToInterrupt(ir_Pin)); // Отключаем прерывания на время расчета
 
-     //client.publish("/hello", "world");
+     //client.publish("/hello", "world"); // Проверка связи
  
   
 
@@ -244,24 +284,24 @@ void loop() {
      Serial.println(count_fps);
 
 
-     //time = millis();
-     char buffer[12]; // Буфер достаточного размера
-     sprintf(buffer, "%lu", lastMillis_rpm); // %lu для unsigned long
-     // Теперь buffer содержит строку, например, "12345"
-     client.publish("/times", buffer);
+    //  //time = millis();
+    //  char buffer[12]; // Буфер достаточного размера
+    //  sprintf(buffer, "%lu", lastMillis_rpm); // %lu для unsigned long
+    //  // Теперь buffer содержит строку, например, "12345"
+    //  client.publish("/times", buffer);
  
 
-     //char buffer[12]; // Буфер достаточного размера
-     sprintf(buffer, "%i", count_fps); // %lu для unsigned long
-     // Теперь buffer содержит строку, например, "12345"
-     client.publish("/fps", buffer);
+    //  //char buffer[12]; // Буфер достаточного размера
+    //  sprintf(buffer, "%i", count_fps); // %lu для unsigned long
+    //  // Теперь buffer содержит строку, например, "12345"
+    //  client.publish("/fps", buffer);
 
-     sprintf(buffer, "%i", holl_rpm); // %lu для unsigned long
-     client.publish("/rpm", buffer);
-     sprintf(buffer, "%d", holl_pulseCount); // %lu для unsigned long
-     client.publish("/holl_pulseCount", buffer); 
-     sprintf(buffer, "%d", holl_pulseCount_ditry); // %lu для unsigned long
-     client.publish("/holl_pulseCount_ditry", buffer);    
+    //  sprintf(buffer, "%i", holl_rpm); // %lu для unsigned long
+    //  client.publish("/rpm", buffer);
+    //  sprintf(buffer, "%d", holl_pulseCount); // %lu для unsigned long
+    //  client.publish("/holl_pulseCount", buffer); 
+    //  sprintf(buffer, "%d", holl_pulseCount_ditry); // %lu для unsigned long
+    //  client.publish("/holl_pulseCount_ditry", buffer);    
 
 
 
@@ -282,18 +322,47 @@ void loop() {
      Serial.print("ir_pulseCount_ditry: ");
      Serial.println(ir_pulseCount_ditry);
 
-     sprintf(buffer, "%i", ir_rpm); // %lu для unsigned long
-     client.publish("/ir_rpm", buffer);
-     sprintf(buffer, "%d", ir_pulseCount); // %lu для unsigned long
-     client.publish("/ir_pulseCount", buffer); 
-     sprintf(buffer, "%d", ir_pulseCount_ditry); // %lu для unsigned long
-     client.publish("/ir_pulseCount_ditry", buffer);   
+    //  sprintf(buffer, "%i", ir_rpm); // %lu для unsigned long
+    //  client.publish("/ir_rpm", buffer);
+    //  sprintf(buffer, "%d", ir_pulseCount); // %lu для unsigned long
+    //  client.publish("/ir_pulseCount", buffer); 
+    //  sprintf(buffer, "%d", ir_pulseCount_ditry); // %lu для unsigned long
+    //  client.publish("/ir_pulseCount_ditry", buffer);   
 
 
 
 // Датчик инфракрасный - КОНЕЦ
 
+ bool reading = digitalRead(BUTTON_PIN); // Чтение текущего состояния кнопки
+  if (reading == LOW)
+  {
+    // delay(20);
+    if (reading == LOW)
+    {
+      tareScale(); // Вызов функции обнуления весов
+    }
+  }
+  // Измерение веса с усреднением
+  // ounces - унции
+  // units - граммы
 
+  ounces = 0; // Обнуление переменной для накопления значений
+  for (int i = 0; i < 3; i++)  // Цикл из 3 итераций
+  {
+    ounces += scale.get_units(5); // Каждый вызов функции возвращает среднее значение из 5 измерений
+  }
+  ounces = ounces / 3; // Усреднение значений
+  units = ounces * 0.035274; // Конвертация в граммы (1 унция = 28.3495 грамм)
+  // Вывод в Serial Monitor для отладки
+  Serial.print("Weight: ");
+  Serial.print(units, 2); // Вывод с двумя знаками после запятой
+  Serial.println(" grams");
+ 
+  // Расчет мощности
+  Power_Watt_ir = units * 0.00981 * ir_rpm * 0.1047;
+  Serial.print("Power_Watt_ir: ");
+  Serial.print(Power_Watt_ir, 2); // Вывод с двумя знаками после запятой
+  Serial.println(" Watt");
 
   // Создание JSON документа
   StaticJsonDocument<200> doc;
@@ -306,6 +375,8 @@ void loop() {
   doc["ir_pulseCount"] = ir_pulseCount;
   doc["ir_pulseCount_ditry"] = ir_pulseCount_ditry;
   doc["ir_rpm"] = ir_rpm;
+  doc["units"] = units;
+  doc["Power_Watt_ir"] = Power_Watt_ir;
 
 
   char jsonBuffer[200];
