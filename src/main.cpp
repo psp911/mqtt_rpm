@@ -15,6 +15,7 @@
 #include <WiFi.h>
 #include <MQTT.h>
 #include <ArduinoJson.h>
+#include <cmath> // Необходимо для round, ceil, floor, trunc 
 
 #include "HX711.h"       // Библиотека для работы с АЦП HX711
 // Создание объектов
@@ -29,6 +30,7 @@ float units;                       // Переменная для измерен
 float ounces;                   // Переменная для измерений в унциях
 
 float Power_Watt_ir;                   // Мощность в Ваттах, инфракрасный датчик
+int PW;
 
 // Функция обнуления весов (тарирование)
 void tareScale()
@@ -125,14 +127,14 @@ void connect() {
 
 }
 
-// void messageReceived(String &topic, String &payload) {
-//   Serial.println("incoming: " + topic + " - " + payload);
+void messageReceived(String &topic, String &payload) {
+  Serial.println("incoming: " + topic + " - " + payload);
 
-//   // Note: Do not use the client in the callback to publish, subscribe or
-//   // unsubscribe as it may cause deadlocks when other things arrive while
-//   // sending and receiving acknowledgments. Instead, change a global variable,
-//   // or push to a queue and handle it in the loop after calling `client.loop()`.
-// }
+  // Note: Do not use the client in the callback to publish, subscribe or
+  // unsubscribe as it may cause deadlocks when other things arrive while
+  // sending and receiving acknowledgments. Instead, change a global variable,
+  // or push to a queue and handle it in the loop after calling `client.loop()`.
+}
 
 volatile unsigned long turnover = 0;
 volatile unsigned long last_turnover = 0;
@@ -230,6 +232,7 @@ void loop() {
   //delay(500);  // <- fixes some issues with WiFi stability
   count_fps=count_fps+1; // счетчик итераций
   Power_Watt_ir = 0; // Сброс мощности
+  PW=0;
 
   // Временной флаг для соединения по WiFi - не по WiFi а по MQTT
   lastMillis_wifi = millis();
@@ -354,12 +357,13 @@ void loop() {
  
   // Расчет мощности
   Power_Watt_ir = units * 0.00981 * ir_rpm * 0.1047;
+  PW = round(Power_Watt_ir);
   Serial.print("Power_Watt_ir: ");
   Serial.print(Power_Watt_ir, 2); // Вывод с двумя знаками после запятой
   Serial.println(" Watt");
 
   // Создание JSON документа
-  StaticJsonDocument<200> doc;
+  StaticJsonDocument<300> doc;
   doc["sensor"] = "esp32_01";
   doc["count_fps"] = count_fps; 
   doc["lastMillis_rpm"] = lastMillis_rpm; 
@@ -370,7 +374,7 @@ void loop() {
   doc["ir_pulseCount_ditry"] = ir_pulseCount_ditry;
   doc["ir_rpm"] = ir_rpm;
   doc["units"] = units;
-  doc["Power_Watt_ir"] = Power_Watt_ir;
+  doc["PW"] = PW;
 
 
   char jsonBuffer[200];
