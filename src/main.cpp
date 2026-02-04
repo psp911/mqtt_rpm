@@ -96,7 +96,7 @@ const int ir_Pin = 18;     // Пин, к которому подключен DO 
 int ir_State = 0;          // Состояние датчика Инфракрасного
 volatile unsigned int ir_pulseCount = 0; // Счетчик импульсов датчика Инфракрасного
 volatile unsigned int ir_pulseCount_ditry = 0; // Счетчик импульсов датчика Инфракрасного c Дребезгом
-int ir_rpm = 0; // Оборотов в минуту  датчика Инфракрасного
+float ir_rpm = 0; // Оборотов в минуту  датчика Инфракрасного
 
 WiFiClient net;
 MQTTClient client;
@@ -122,26 +122,17 @@ void connect() {
 
   Serial.println("\nconnected!");
 
-  /* client.subscribe("/hello");
-  client.subscribe("/times");
-  client.subscribe("/fps");
-  client.subscribe("/rpm");
-  client.subscribe("/pulseCount");
-  client.unsubscribe("/pulseCount_ditry");
-  client.subscribe("/ir_rpm");
-  client.subscribe("/ir_pulseCount");
-  client.unsubscribe("/ir_pulseCount_ditry");
-   */
+
 }
 
-void messageReceived(String &topic, String &payload) {
-  Serial.println("incoming: " + topic + " - " + payload);
+// void messageReceived(String &topic, String &payload) {
+//   Serial.println("incoming: " + topic + " - " + payload);
 
-  // Note: Do not use the client in the callback to publish, subscribe or
-  // unsubscribe as it may cause deadlocks when other things arrive while
-  // sending and receiving acknowledgments. Instead, change a global variable,
-  // or push to a queue and handle it in the loop after calling `client.loop()`.
-}
+//   // Note: Do not use the client in the callback to publish, subscribe or
+//   // unsubscribe as it may cause deadlocks when other things arrive while
+//   // sending and receiving acknowledgments. Instead, change a global variable,
+//   // or push to a queue and handle it in the loop after calling `client.loop()`.
+// }
 
 volatile unsigned long turnover = 0;
 volatile unsigned long last_turnover = 0;
@@ -347,11 +338,14 @@ void loop() {
   // units - граммы
 
   ounces = 0; // Обнуление переменной для накопления значений
-  for (int i = 0; i < 3; i++)  // Цикл из 3 итераций
-  {
-    ounces += scale.get_units(5); // Каждый вызов функции возвращает среднее значение из 5 измерений
-  }
-  ounces = ounces / 3; // Усреднение значений
+  // for (int i = 0; i < 3; i++)  // Цикл из 3 итераций
+  // {
+  //   ounces += scale.get_units(5); // Каждый вызов функции возвращает среднее значение из 5 измерений
+  // }
+  // ounces = ounces / 3; // Усреднение значений
+
+  ounces = scale.get_units(15); // Каждый вызов функции возвращает среднее значение из 5 измерений
+
   units = ounces * 0.035274; // Конвертация в граммы (1 унция = 28.3495 грамм)
   // Вывод в Serial Monitor для отладки
   Serial.print("Weight: ");
