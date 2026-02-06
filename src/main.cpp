@@ -30,7 +30,11 @@ float units;                       // Переменная для измерен
 float ounces;                   // Переменная для измерений в унциях
 
 float Power_Watt_ir;                   // Мощность в Ваттах, инфракрасный датчик
-int PW;
+int int_PW_ir;
+float Power_Watt_holl;                   // Мощность в Ваттах, датчик Холла
+int int_PW_holl;
+volatile unsigned int COUNT_MAGNIT = 22; // Количество магнитов на оборот для датчика Холла
+volatile unsigned int COUNT_PULSE_IR = 1; // Количество пульсаций на оборот для IR датчика
 
 // Функция обнуления весов (тарирование)
 void tareScale()
@@ -56,12 +60,17 @@ void tareScale()
 //const char ssid[] = "OnePlus 10 Pro 5G-76e8";
 //const char pass[] = "g3se674x";
 
-const char ssid[] = "4G-UFI-C70D";
-const char pass[] = "9546595465Hotspot!";
+// const char ssid[] = "4G-UFI-C70D";
+// const char pass[] = "9546595465Hotspot!";
 
 
 // const char ssid[] = "HOMELAB-10";
 // const char pass[] = "9546595465Homelab!";
+
+
+const char ssid[] = "Keenetic-0606";
+const char pass[] = "hkCXMKY9";
+
 
 
 
@@ -76,8 +85,10 @@ const char MQTT_PASSWORD[] = "9546595465Psp!"; // CHANGE IT IF REQUIRED, empty i
  */
 
 //const char MQTT_BROKER_ADRRESS[] = "91.149.232.230";  // CHANGE TO MQTT BROKER'S ADDRESS
-const char MQTT_BROKER_ADRRESS[] = "192.168.100.237"; // CHANGE TO MQTT BROKER'S ADDRESS
+// const char MQTT_BROKER_ADRRESS[] = "192.168.100.237"; // CHANGE TO MQTT BROKER'S ADDRESS
 // const char MQTT_BROKER_ADRRESS[] = "192.168.10.72"; // CHANGE TO MQTT BROKER'S ADDRESS
+const char MQTT_BROKER_ADRRESS[] = "192.168.20.152"; // CHANGE TO MQTT BROKER'S ADDRESS
+
 const int MQTT_PORT = 1883;
 //const int MQTT_PORT = 8883;
 const char MQTT_CLIENT_ID[] = "Umbrella-esp32-001"; // CHANGE IT AS YOU DESIRE
@@ -105,6 +116,7 @@ MQTTClient client;
 
 unsigned long lastMillis = 0;
 unsigned long lastMillis_wifi = 0;
+unsigned long lastMillis_mqtt = 0;
 unsigned long count_fps = 0;
 //unsigned long time = 0;
 
@@ -128,7 +140,7 @@ void connect() {
 }
 
 void messageReceived(String &topic, String &payload) {
-  Serial.println("incoming: " + topic + " - " + payload);
+  //Serial.println("incoming: " + topic + " - " + payload);
 
   // Note: Do not use the client in the callback to publish, subscribe or
   // unsubscribe as it may cause deadlocks when other things arrive while
@@ -141,7 +153,7 @@ volatile unsigned long last_turnover = 0;
 volatile unsigned long turnover_time = 0; 
 
 
-const int drebezg_time = 5000;       // Длина времени на дребезг, микросекунд
+const int drebezg_time = 200;       // Длина времени на дребезг, микросекунд
                                       // 20000 микросекунд = 50 Гц = 3000 об\мин
                                       // 5000 vмикросекунд = 200 Гц = 12000 об\мин
 
@@ -160,7 +172,7 @@ void IRAM_ATTR handleInterrupt() {
 
 volatile unsigned long ir_turnover = 0;
 volatile unsigned long ir_last_turnover = 0;
-volatile unsigned long ir_turnover_time = 0; 
+// volatile unsigned long ir_turnover_time = 0; 
 
 const int ir_drebezg_time = 5000;       // Длина времени на дребезг, микросекунд датчика Инфракрасного
                                       // 20000 микросекунд = 50 Гц = 3000 об\мин
@@ -171,8 +183,8 @@ void IRAM_ATTR ir_handleInterrupt() {
   ir_turnover = micros()-ir_last_turnover; //Вычисляет время между двумя обротами (почему двумя а не одним??)
   if (ir_turnover > ir_drebezg_time)
   {
-    ir_turnover_time=ir_turnover;
-    Serial.println(ir_turnover_time);
+    // ir_turnover_time=ir_turnover;
+    Serial.println(ir_turnover);
     ir_last_turnover=micros();
     ir_pulseCount++;
   }
@@ -218,55 +230,48 @@ void setup() {
   scale.tare();                                     // Первоначальное обнуление веса
   scale.set_scale(calibration_factor); // Установка калибровочного коэффициента
   
-
 }
-
 
 
 void loop() {
 
-
-   client.loop();
-
-
+  client.loop();
   //delay(500);  // <- fixes some issues with WiFi stability
   count_fps=count_fps+1; // счетчик итераций
   Power_Watt_ir = 0; // Сброс мощности
-  PW=0;
+  int_PW_ir=0;
+  Power_Watt_holl = 0; // Сброс мощности
+  int_PW_holl=0;
 
-  // Временной флаг для соединения по WiFi - не по WiFi а по MQTT
-  lastMillis_wifi = millis();
+  // Временной флаг для соединения по MQTT
+  lastMillis_mqtt = millis();
 
   // publish a message roughly every second.
   // По моему тут коннектимся к МКУТТ серверу на чаще раза в секунду, если коннекта нету
-  if (millis() - lastMillis_wifi > 3000) {
-    //lastMillis = millis();
+  if (millis() - lastMillis_mqtt > 3000) {
+    lastMillis_mqtt = millis();
     if (!client.connected()) {
       connect();
     }
 
    }
-
-
     
 
-   // Расчет RPM каждую секунду
+   // Расчет всего каждую секунду
    if (millis() - lastMillis_rpm >= 1000) {
 
      detachInterrupt(digitalPinToInterrupt(hallPin)); // Отключаем прерывания на время расчета
-
      detachInterrupt(digitalPinToInterrupt(ir_Pin)); // Отключаем прерывания на время расчета
 
      //client.publish("/hello", "world"); // Проверка связи
  
-  
-
-
      // RPM = (импульсы за сек) * 60
-     holl_rpm = (holl_pulseCount * 60); 
+     holl_rpm = round((holl_pulseCount * 60)/COUNT_MAGNIT); 
  
-     Serial.print("RPM: ");
-     Serial.println(holl_rpm);
+     Serial.print("holl_rpm---->: ");
+     Serial.print(holl_rpm);
+     Serial.print(" ===== количество магнитов: ");
+     Serial.println(COUNT_MAGNIT);
  
      Serial.print("holl_pulseCount: ");
      Serial.println(holl_pulseCount);
@@ -278,34 +283,11 @@ void loop() {
      Serial.println(count_fps);
 
 
-    //  //time = millis();
-    //  char buffer[12]; // Буфер достаточного размера
-    //  sprintf(buffer, "%lu", lastMillis_rpm); // %lu для unsigned long
-    //  // Теперь buffer содержит строку, например, "12345"
-    //  client.publish("/times", buffer);
- 
-
-    //  //char buffer[12]; // Буфер достаточного размера
-    //  sprintf(buffer, "%i", count_fps); // %lu для unsigned long
-    //  // Теперь buffer содержит строку, например, "12345"
-    //  client.publish("/fps", buffer);
-
-    //  sprintf(buffer, "%i", holl_rpm); // %lu для unsigned long
-    //  client.publish("/rpm", buffer);
-    //  sprintf(buffer, "%d", holl_pulseCount); // %lu для unsigned long
-    //  client.publish("/holl_pulseCount", buffer); 
-    //  sprintf(buffer, "%d", holl_pulseCount_ditry); // %lu для unsigned long
-    //  client.publish("/holl_pulseCount_ditry", buffer);    
 
 
-
-
-
-// Датчик инфракрасный - НАЧАЛО
-
-
+    // Датчик инфракрасный - НАЧАЛО
      // RPM = (импульсы за сек) * 60
-     ir_rpm = (ir_pulseCount * 60); 
+     ir_rpm = (round(ir_pulseCount * 60)/COUNT_PULSE_IR); 
  
      Serial.print("IR_RPM: ");
      Serial.println(ir_rpm);
@@ -316,76 +298,78 @@ void loop() {
      Serial.print("ir_pulseCount_ditry: ");
      Serial.println(ir_pulseCount_ditry);
 
-    //  sprintf(buffer, "%i", ir_rpm); // %lu для unsigned long
-    //  client.publish("/ir_rpm", buffer);
-    //  sprintf(buffer, "%d", ir_pulseCount); // %lu для unsigned long
-    //  client.publish("/ir_pulseCount", buffer); 
-    //  sprintf(buffer, "%d", ir_pulseCount_ditry); // %lu для unsigned long
-    //  client.publish("/ir_pulseCount_ditry", buffer);   
+    // Датчик инфракрасный - КОНЕЦ
 
+    bool reading = digitalRead(BUTTON_PIN); // Чтение текущего состояния кнопки
+      if (reading == LOW)
+      {
+        // delay(20);
+        if (reading == LOW)
+        {
+          tareScale(); // Вызов функции обнуления весов
+        }
+      }
+    // Измерение веса с усреднением
+    // ounces - унции
+    // units - граммы
 
-
-// Датчик инфракрасный - КОНЕЦ
-
- bool reading = digitalRead(BUTTON_PIN); // Чтение текущего состояния кнопки
-  if (reading == LOW)
-  {
-    // delay(20);
-    if (reading == LOW)
-    {
-      tareScale(); // Вызов функции обнуления весов
-    }
-  }
-  // Измерение веса с усреднением
-  // ounces - унции
-  // units - граммы
-
-  ounces = 0; // Обнуление переменной для накопления значений
-  // for (int i = 0; i < 3; i++)  // Цикл из 3 итераций
-  // {
-  //   ounces += scale.get_units(5); // Каждый вызов функции возвращает среднее значение из 5 измерений
-  // }
-  // ounces = ounces / 3; // Усреднение значений
-
-  ounces = scale.get_units(15); // Каждый вызов функции возвращает среднее значение из 5 измерений
-
-  units = ounces * 0.035274; // Конвертация в граммы (1 унция = 28.3495 грамм)
-  // Вывод в Serial Monitor для отладки
-  Serial.print("Weight: ");
-  Serial.print(units, 2); // Вывод с двумя знаками после запятой
-  Serial.println(" grams");
- 
-  // Расчет мощности
-  Power_Watt_ir = units * 0.00981 * ir_rpm * 0.1047;
-  PW = round(Power_Watt_ir);
-  Serial.print("Power_Watt_ir: ");
-  Serial.print(Power_Watt_ir, 2); // Вывод с двумя знаками после запятой
-  Serial.println(" Watt");
-
-  // Создание JSON документа
-  StaticJsonDocument<300> doc;
-  doc["sensor"] = "esp32_01";
-  doc["count_fps"] = count_fps; 
-  doc["lastMillis_rpm"] = lastMillis_rpm; 
-  doc["holl_pulseCount"] = holl_pulseCount;
-  doc["holl_pulseCount_ditry"] = holl_pulseCount_ditry;
-  doc["holl_rpm"] = holl_rpm;
-  doc["ir_pulseCount"] = ir_pulseCount;
-  doc["ir_pulseCount_ditry"] = ir_pulseCount_ditry;
-  doc["ir_rpm"] = ir_rpm;
-  doc["units"] = units;
-  doc["PW"] = PW;
-
-
-  char jsonBuffer[200];
-  serializeJson(doc, jsonBuffer); // Преобразование в строку
-
-  // Публикация в MQTT топик
-  client.publish("/UmblellaEsp32/data", jsonBuffer);
+    ounces = 0; // Обнуление переменной для накопления значений
+    ounces = scale.get_units(15); // Каждый вызов функции возвращает среднее значение из 5 измерений
+    units = round(ounces * 0.035274); // Конвертация в граммы (1 унция = 28.3495 грамм), округляем до целых
+    // Вывод в Serial Monitor для отладки
+    Serial.print("Weight: ");
+    Serial.print(units, 2); // Вывод с двумя знаками после запятой
+    Serial.println(" grams");
   
+    // Расчет мощности Инфракрасный датчик
+    Power_Watt_ir = units * 0.00981 * ir_rpm * 0.1047;
+    int_PW_ir = round(Power_Watt_ir);
+    Serial.print("Power_Watt_ir: ");
+    Serial.print(Power_Watt_ir, 2); // Вывод с двумя знаками после запятой
+    Serial.println(" Watt");
+
+    // char buffer[12]; // Буфер достаточного размера
+    // sprintf(buffer, "%i", int_PW_ir); // %lu для unsigned long
+    // client.publish("/int_PW_ir", buffer);
+
+    // Расчет мощности датчик Холла
+    Power_Watt_holl = units * 0.00981 * holl_rpm * 0.1047;
+    int_PW_holl = round(Power_Watt_holl);
+    Serial.print("Power_Watt_holl: ");
+    Serial.print(Power_Watt_holl, 2); // Вывод с двумя знаками после запятой
+    Serial.println(" Watt");
+
+    // // char buffer[12]; // Буфер достаточного размера
+    // sprintf(buffer, "%i", int_PW_holl); // %lu для unsigned long
+    // client.publish("/int_PW_holl", buffer);
 
 
+    // Создание JSON документа
+    StaticJsonDocument<300> doc;
+    doc["sensor"] = "esp32_01";
+    doc["count_fps"] = count_fps; 
+    doc["lastMillis_rpm"] = lastMillis_rpm; 
+    doc["holl_pulseCount"] = holl_pulseCount;
+    doc["holl_pulseCount_ditry"] = holl_pulseCount_ditry;
+    doc["holl_rpm"] = holl_rpm;
+    doc["ir_pulseCount"] = ir_pulseCount;
+    doc["ir_pulseCount_ditry"] = ir_pulseCount_ditry;
+    doc["ir_rpm"] = ir_rpm;
+    doc["units"] = units;
+    doc["COUNT_MAGNIT"] = COUNT_MAGNIT;
+    doc["COUNT_PULSE_IR"] = COUNT_PULSE_IR;
+    doc["int_PW_holl"] = int_PW_holl;
+    doc["int_PW_ir"] = int_PW_ir;
 
+    
+
+
+    char jsonBuffer[300];
+    serializeJson(doc, jsonBuffer); // Преобразование в строку
+
+     // Публикация в MQTT топик
+     client.publish("/UmbrellaEsp32/data", jsonBuffer);
+      
      holl_pulseCount = 0;            // Сбрасываем счетчик датчика Холла
      holl_pulseCount_ditry = 0;
 
@@ -394,12 +378,10 @@ void loop() {
 
      lastMillis_rpm = millis(); // Обновляем время
      count_fps=0;               // Сбрасываем счетчик fps
+
      attachInterrupt(digitalPinToInterrupt(hallPin), handleInterrupt, FALLING); // Включаем прерывания датчика Холла  
      attachInterrupt(digitalPinToInterrupt(ir_Pin), ir_handleInterrupt, FALLING); // Включаем прерывания Инфракрасного датчика
 
-
    }
   
-
-
 }
