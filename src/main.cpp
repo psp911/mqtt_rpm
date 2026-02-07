@@ -118,7 +118,7 @@ unsigned long lastMillis = 0;
 unsigned long lastMillis_wifi = 0;
 unsigned long lastMillis_mqtt = 0;
 unsigned long count_fps = 0;
-//unsigned long time = 0;
+
 
 void connect() {
   Serial.print("checking wifi...  (Проверка WiFi... ) ");
@@ -162,8 +162,7 @@ void IRAM_ATTR handleInterrupt() {
   turnover = micros()-last_turnover; //Вычисляет время между двумя обротами (почему двумя а не одним??)
   if (turnover > drebezg_time)
   {
-    turnover_time=turnover;
-    Serial.println(turnover_time);
+    // turnover_time=turnover;
     last_turnover=micros();
     holl_pulseCount++;
   }
@@ -183,8 +182,6 @@ void IRAM_ATTR ir_handleInterrupt() {
   ir_turnover = micros()-ir_last_turnover; //Вычисляет время между двумя обротами (почему двумя а не одним??)
   if (ir_turnover > ir_drebezg_time)
   {
-    // ir_turnover_time=ir_turnover;
-    Serial.println(ir_turnover);
     ir_last_turnover=micros();
     ir_pulseCount++;
   }
@@ -195,6 +192,7 @@ void IRAM_ATTR ir_handleInterrupt() {
 void setup() {
   //Serial.begin(115200);
   Serial.begin(9600);
+ 
   WiFi.begin(ssid, pass);
   esp_log_level_set("wifi", ESP_LOG_VERBOSE);
   Serial.println("\nПодключено к Wi-Fi!");
@@ -212,7 +210,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(hallPin), handleInterrupt, FALLING); // FALLING - переход с HIGH на LOW
 
   //pinMode(hallPin, INPUT_PULLUP); // Используем встроенную подтяжку, если модуль без нее
- // attachInterrupt(digitalPinToInterrupt(ir_Pin), ir_handleInterrupt, FALLING); // FALLING - переход с HIGH на LOW
+ attachInterrupt(digitalPinToInterrupt(ir_Pin), ir_handleInterrupt, FALLING); // FALLING - переход с HIGH на LOW
 
   // Далее для тензодатчика
    pinMode(BUTTON_PIN, INPUT_PULLUP); // Подтяжка к питанию (кнопка замыкает на GND)
@@ -260,33 +258,33 @@ void loop() {
    // Расчет всего каждую секунду
    if (millis() - lastMillis_rpm >= 1000) {
 
-     detachInterrupt(digitalPinToInterrupt(hallPin)); // Отключаем прерывания на время расчета
+    //  detachInterrupt(digitalPinToInterrupt(hallPin)); // Отключаем прерывания на время расчета
      detachInterrupt(digitalPinToInterrupt(ir_Pin)); // Отключаем прерывания на время расчета
 
      //client.publish("/hello", "world"); // Проверка связи
  
      // RPM = (импульсы за сек) * 60
-     holl_rpm = round((holl_pulseCount * 60)/COUNT_MAGNIT); 
+    //  holl_rpm = round((holl_pulseCount * 60)/COUNT_MAGNIT); 
  
-     Serial.print("holl_rpm---->: ");
-     Serial.print(holl_rpm);
-     Serial.print(" ===== количество магнитов: ");
-     Serial.println(COUNT_MAGNIT);
+    //  Serial.print("holl_rpm---->: ");
+    //  Serial.print(holl_rpm);
+    //  Serial.print(" ===== количество магнитов: ");
+    //  Serial.println(COUNT_MAGNIT);
  
-     Serial.print("holl_pulseCount: ");
-     Serial.println(holl_pulseCount);
+    //  Serial.print("holl_pulseCount: ");
+    //  Serial.println(holl_pulseCount);
  
-     Serial.print("holl_pulseCount_ditry: ");
-     Serial.println(holl_pulseCount_ditry);
+    //  Serial.print("holl_pulseCount_ditry: ");
+    //  Serial.println(holl_pulseCount_ditry);
 
-     Serial.print("count_fps: ");
-     Serial.println(count_fps);
+    //  Serial.print("count_fps: ");
+    //  Serial.println(count_fps);
 
 
 
 
     // Датчик инфракрасный - НАЧАЛО
-     // RPM = (импульсы за сек) * 60
+     
      ir_rpm = (round(ir_pulseCount * 60)/COUNT_PULSE_IR); 
  
      Serial.print("IR_RPM: ");
@@ -321,7 +319,7 @@ void loop() {
     Serial.print(units, 2); // Вывод с двумя знаками после запятой
     Serial.println(" grams");
   
-    // Расчет мощности Инфракрасный датчик
+    // // Расчет мощности Инфракрасный датчик
     Power_Watt_ir = units * 0.00981 * ir_rpm * 0.1047;
     int_PW_ir = round(Power_Watt_ir);
     Serial.print("Power_Watt_ir: ");
@@ -332,7 +330,7 @@ void loop() {
     // sprintf(buffer, "%i", int_PW_ir); // %lu для unsigned long
     // client.publish("/int_PW_ir", buffer);
 
-    // Расчет мощности датчик Холла
+    // // Расчет мощности датчик Холла
     Power_Watt_holl = units * 0.00981 * holl_rpm * 0.1047;
     int_PW_holl = round(Power_Watt_holl);
     Serial.print("Power_Watt_holl: ");
