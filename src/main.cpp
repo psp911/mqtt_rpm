@@ -16,11 +16,11 @@
 #include <MQTT.h>
 #include <ArduinoJson.h>
 #include <cmath> // Необходимо для round, ceil, floor, trunc 
-#include <LiquidCrystal_I2C.h> // Двухстрочный дисплей 1602
+// #include <LiquidCrystal_I2C.h> // Двухстрочный дисплей 1602
 #include "HX711.h"       // Библиотека для работы с АЦП HX711
 // Создание объектов
 HX711 scale;                      // Объект для работы с тензодатчиком
-LiquidCrystal_I2C lcd(0x27, 16, 2); // set the LCD address to 0x27 for a 16 chars and 2 line display
+// LiquidCrystal_I2C lcd(0x27, 16, 2); // set the LCD address to 0x27 for a 16 chars and 2 line display
 
 // Определение пинов подключения весов
 #define DT_PIN 21          // Пин DATA (DT) HX711
@@ -233,7 +233,7 @@ void setup() {
   
   Serial.begin(9600);
  
-
+/* 
   Wire.setPins(sda_pin, scl_pin); // Set the I2C pins before begin
 	lcd.init(sda_pin, scl_pin); // initialize the lcd to use user defined I2C pins
 
@@ -247,6 +247,9 @@ void setup() {
 	lcd.setCursor(0,0);         // Установить курсор
 	lcd.print("Welcome!!!:");
 	delay(1000);
+
+ */
+
 
   Serial.println("Мы тут 10 ========");
   WiFi.begin(ssid, pass);
@@ -324,7 +327,7 @@ void loop() {
   if (millis() - lastMillis_mqtt >= 3000) {
     lastMillis_mqtt = millis();
     
-    Serial.println("Мы тут 2000 ======== По моему тут коннектимся к МКУТТ серверу на");
+    Serial.println("Мы тут 2000 ======== тут коннектимся к МКУТТ серверу на");
 
     if (!client.connected()) {
       connect();
@@ -339,16 +342,16 @@ void loop() {
     detachInterrupt(digitalPinToInterrupt(hallPin)); // Отключаем прерывания на время расчета
     detachInterrupt(digitalPinToInterrupt(ir_Pin)); // Отключаем прерывания на время расчета
 
-    client.publish("/hello", "world"); // Проверка связи
+    // client.publish("/hello", "world"); // Проверка связи
  
 
      holl_rpm = round((holl_pulseCount * 60)/COUNT_MAGNIT); 
  
-     Serial.print("holl_rpm ===========: ");
+     Serial.print("holl_rpm =================================== holl_rpm : ");
      Serial.println(holl_rpm);
      Serial.println();
-     Serial.print("количество магнитов: ");
-     Serial.println(COUNT_MAGNIT);
+    //  Serial.print("количество магнитов: ");
+    //  Serial.println(COUNT_MAGNIT);
  
      Serial.print("holl_pulseCount: ");
      Serial.println(holl_pulseCount);
@@ -366,7 +369,7 @@ void loop() {
      
      ir_rpm = (round(ir_pulseCount * 60)/COUNT_PULSE_IR); 
  
-     Serial.print("IR_RPM ===============: ");
+     Serial.print("IR_RPM ============================================== IR_RPM : ");
      Serial.println(ir_rpm);
      Serial.println();
  
@@ -378,15 +381,17 @@ void loop() {
 
     // Датчик инфракрасный - КОНЕЦ
 
-    bool reading = digitalRead(BUTTON_PIN); // Чтение текущего состояния кнопки
-      if (reading == LOW)
-      {
-        // delay(20);
-        if (reading == LOW)
-        {
-          tareScale(); // Вызов функции обнуления весов
-        }
-      }
+    // bool reading = digitalRead(BUTTON_PIN); // Чтение текущего состояния кнопки
+    //   if (reading == LOW)
+    //   {
+    //     // delay(20);
+    //     if (reading == LOW)
+    //     {
+    //       tareScale(); // Вызов функции обнуления весов
+    //     }
+    //   }
+
+
     // Измерение веса с усреднением
     // ounces - унции
     // units - граммы
@@ -395,9 +400,8 @@ void loop() {
     ounces = scale.get_units(15); // Каждый вызов функции возвращает среднее значение из 15 измерений
     units = round(ounces * 0.035274); // Конвертация в граммы (1 унция = 28.3495 грамм), округляем до целых
     // Вывод в Serial Monitor для отладки
-    Serial.print("Weight =================: ");
+    Serial.print("Вес на тензодатчике, грамм =================: ");
     Serial.print(units, 2); // Вывод с двумя знаками после запятой
-    Serial.println(" grams");
     Serial.println();
   
     // // Расчет мощности Инфракрасный датчик
