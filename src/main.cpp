@@ -16,13 +16,20 @@
 #include <MQTT.h>
 #include <ArduinoJson.h>
 #include <cmath> // Необходимо для round, ceil, floor, trunc 
-
+#include <LiquidCrystal_I2C.h> // Двухстрочный дисплей 1602
 #include "HX711.h"       // Библиотека для работы с АЦП HX711
 // Создание объектов
 HX711 scale;                      // Объект для работы с тензодатчиком
-// Определение пинов подключения
+LiquidCrystal_I2C lcd(0x27, 16, 2); // set the LCD address to 0x27 for a 16 chars and 2 line display
+
+// Определение пинов подключения весов
 #define DT_PIN 21          // Пин DATA (DT) HX711
-#define SCK_PIN 22        // Пин CLOCK (SCK) HX711
+#define SCK_PIN 22        // Пин CLOCK (SCK) HX711      
+
+// Определение пинов подключения Дисплея 1602
+int sda_pin = 16; // GPIO16 as I2C SDA
+int scl_pin = 17; // GPIO17 as I2C SCL
+
 #define BUTTON_PIN 0  // Пин кнопки обнуления (GPIO0 - обычно кнопка BOOT на ESP32)
 // Калибровочные параметры
 float calibration_factor = 7.60; // Калибровочный коэффициент (подбирается экспериментально)
@@ -121,26 +128,61 @@ unsigned long count_fps = 0;
 
 
 void connect() {
+
+  Serial.println("Мы тут 50 ======== ");
+
   Serial.print("checking wifi...  (Проверка WiFi... ) ");
   while (WiFi.status() != WL_CONNECTED) {
     Serial.print(".//.");
-    delay(5000);
+    // lcd.setCursor(0,0);
+    // lcd.print("WiFi conn...");
+    Serial.println("Мы тут 60 ======== ");
+    delay(2000);
   }
 
+  Serial.println("Мы тут 70 ======== ");
+  Serial.println("Подключено к Wi-Fi!");
 
-  Serial.print("\nconnecting...");
+  
+  // lcd.setCursor(0,1);
+  // lcd.print("WiFi connected!");
+  // delay(2000);
+  // lcd.clear();
+
+  Serial.print("IP адрес: ");
+  Serial.print(WiFi.localIP());
+  
+  // lcd.setCursor(0,0);
+  // lcd.print(WiFi.localIP());
+
+  Serial.println("===============");
+  Serial.print("Теперь подключаемся к MQTT брокеру на адресе:");
+  Serial.println(MQTT_BROKER_ADRRESS);
+
+  Serial.print("\nconnecting... (Соединение с MQTT брокером...)");
   while (!client.connect(MQTT_CLIENT_ID, MQTT_USERNAME, MQTT_PASSWORD)) {
+
+
+    Serial.println("Мы тут 80 ======== ");
     Serial.print(".>.");
-    delay(3000);
+
+    // lcd.setCursor(0,1);
+    // lcd.print(".>.");
+    delay(1000);
   }
 
+
+  Serial.println("Мы тут 90 ======== ");
   Serial.println("\nconnected!");
 
+  // lcd.setCursor(0,1);
+  // lcd.print("MQTT connected!");
+  // delay(2000);
 
 }
 
 void messageReceived(String &topic, String &payload) {
-  //Serial.println("incoming: " + topic + " - " + payload);
+  Serial.println("incoming: " + topic + " - " + payload);
 
   // Note: Do not use the client in the callback to publish, subscribe or
   // unsubscribe as it may cause deadlocks when other things arrive while
@@ -154,15 +196,14 @@ volatile unsigned long turnover_time = 0;
 
 
 const int drebezg_time = 200;       // Длина времени на дребезг, микросекунд
-                                      // 20000 микросекунд = 50 Гц = 3000 об\мин
-                                      // 5000 vмикросекунд = 200 Гц = 12000 об\мин
+                                    // 20000 микросекунд = 50 Гц = 3000 об\мин
+                                    // 5000 vмикросекунд = 200 Гц = 12000 об\мин
 
 // Прерывание: срабатывает при появлении магнита
 void IRAM_ATTR handleInterrupt() {
   turnover = micros()-last_turnover; //Вычисляет время между двумя обротами (почему двумя а не одним??)
   if (turnover > drebezg_time)
   {
-    // turnover_time=turnover;
     last_turnover=micros();
     holl_pulseCount++;
   }
@@ -171,7 +212,6 @@ void IRAM_ATTR handleInterrupt() {
 
 volatile unsigned long ir_turnover = 0;
 volatile unsigned long ir_last_turnover = 0;
-// volatile unsigned long ir_turnover_time = 0; 
 
 const int ir_drebezg_time = 5000;       // Длина времени на дребезг, микросекунд датчика Инфракрасного
                                       // 20000 микросекунд = 50 Гц = 3000 об\мин
@@ -190,16 +230,33 @@ void IRAM_ATTR ir_handleInterrupt() {
 
 
 void setup() {
-  //Serial.begin(115200);
+  
   Serial.begin(9600);
  
+
+  Wire.setPins(sda_pin, scl_pin); // Set the I2C pins before begin
+	lcd.init(sda_pin, scl_pin); // initialize the lcd to use user defined I2C pins
+
+	lcd.backlight();            // Включение подсветки
+  Serial.println("Мы тут 100 ========");
+  delay(1000);
+	lcd.noBacklight();            // Включение подсветки
+  Serial.println("Мы тут 200 ========");
+  delay(1000);
+	lcd.backlight();            // Включение подсветки
+	lcd.setCursor(0,0);         // Установить курсор
+	lcd.print("Welcome!!!:");
+	delay(1000);
+
+  Serial.println("Мы тут 10 ========");
   WiFi.begin(ssid, pass);
   esp_log_level_set("wifi", ESP_LOG_VERBOSE);
-  Serial.println("\nПодключено к Wi-Fi!");
-  Serial.print("IP адрес: ");
-  Serial.println(WiFi.localIP());
+  Serial.println("Мы тут 20 ======== ");
   client.begin(MQTT_BROKER_ADRRESS, net);  
+  Serial.println("Мы тут 30 ======== ");
   client.onMessage(messageReceived);
+  Serial.println("Мы тут 40 ======== ");
+
   connect();
 
   // pinMode(ledPin, OUTPUT);
@@ -210,10 +267,14 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(hallPin), handleInterrupt, FALLING); // FALLING - переход с HIGH на LOW
 
   //pinMode(hallPin, INPUT_PULLUP); // Используем встроенную подтяжку, если модуль без нее
- attachInterrupt(digitalPinToInterrupt(ir_Pin), ir_handleInterrupt, FALLING); // FALLING - переход с HIGH на LOW
+  attachInterrupt(digitalPinToInterrupt(ir_Pin), ir_handleInterrupt, FALLING); // FALLING - переход с HIGH на LOW
+
+
+  Serial.println("Мы тут 4000 ======== Начинаем инициализацию тензодатчика");
 
   // Далее для тензодатчика
-   pinMode(BUTTON_PIN, INPUT_PULLUP); // Подтяжка к питанию (кнопка замыкает на GND)
+  pinMode(BUTTON_PIN, INPUT_PULLUP); // Подтяжка к питанию (кнопка замыкает на GND)
+  Serial.println("Мы тут 4050 ======== Идет инициализация тензодатчика");
   // // Инициализация TFT-дисплея
   // tft.init();                  // Инициализация дисплея
   // tft.setRotation(3);          // Установка ориентации (3 = 180 градусов)
@@ -222,12 +283,26 @@ void setup() {
   // tft.setTextSize(1);
   // tft.setCursor(10, 10);
   // tft.println("Init..."); // Сообщение о инициализации
+
+
+  delay(500);
+
   // // Инициализация весов
   scale.begin(DT_PIN, SCK_PIN);        // Инициализация HX711 с указанием пинов
+
+  Serial.println("Мы тут 4100 ======== Идет инициализация тензодатчика");
+
   scale.set_scale();                             // Установка масштаба (без коэффициента)
+  Serial.println("Мы тут 4200 ======== Идет инициализация тензодатчика");
   scale.tare();                                     // Первоначальное обнуление веса
+  Serial.println("Мы тут 4300 ======== Идет инициализация тензодатчика");
   scale.set_scale(calibration_factor); // Установка калибровочного коэффициента
+
+  Serial.println("Мы тут 1000 ======== Выход из Setup");
   
+
+
+
 }
 
 
@@ -245,9 +320,12 @@ void loop() {
   lastMillis_mqtt = millis();
 
   // publish a message roughly every second.
-  // По моему тут коннектимся к МКУТТ серверу на чаще раза в секунду, если коннекта нету
-  if (millis() - lastMillis_mqtt > 3000) {
+  // По моему тут коннектимся к МКУТТ серверу на чаще раза во сколько то времени, если коннекта нету
+  if (millis() - lastMillis_mqtt >= 3000) {
     lastMillis_mqtt = millis();
+    
+    Serial.println("Мы тут 2000 ======== По моему тут коннектимся к МКУТТ серверу на");
+
     if (!client.connected()) {
       connect();
     }
@@ -258,27 +336,28 @@ void loop() {
    // Расчет всего каждую секунду
    if (millis() - lastMillis_rpm >= 1000) {
 
-    //  detachInterrupt(digitalPinToInterrupt(hallPin)); // Отключаем прерывания на время расчета
-     detachInterrupt(digitalPinToInterrupt(ir_Pin)); // Отключаем прерывания на время расчета
+    detachInterrupt(digitalPinToInterrupt(hallPin)); // Отключаем прерывания на время расчета
+    detachInterrupt(digitalPinToInterrupt(ir_Pin)); // Отключаем прерывания на время расчета
 
-     //client.publish("/hello", "world"); // Проверка связи
+    client.publish("/hello", "world"); // Проверка связи
  
-     // RPM = (импульсы за сек) * 60
-    //  holl_rpm = round((holl_pulseCount * 60)/COUNT_MAGNIT); 
- 
-    //  Serial.print("holl_rpm---->: ");
-    //  Serial.print(holl_rpm);
-    //  Serial.print(" ===== количество магнитов: ");
-    //  Serial.println(COUNT_MAGNIT);
- 
-    //  Serial.print("holl_pulseCount: ");
-    //  Serial.println(holl_pulseCount);
- 
-    //  Serial.print("holl_pulseCount_ditry: ");
-    //  Serial.println(holl_pulseCount_ditry);
 
-    //  Serial.print("count_fps: ");
-    //  Serial.println(count_fps);
+     holl_rpm = round((holl_pulseCount * 60)/COUNT_MAGNIT); 
+ 
+     Serial.print("holl_rpm ===========: ");
+     Serial.println(holl_rpm);
+     Serial.println();
+     Serial.print("количество магнитов: ");
+     Serial.println(COUNT_MAGNIT);
+ 
+     Serial.print("holl_pulseCount: ");
+     Serial.println(holl_pulseCount);
+ 
+     Serial.print("holl_pulseCount_ditry: ");
+     Serial.println(holl_pulseCount_ditry);
+
+     Serial.print("count_fps: ");
+     Serial.println(count_fps);
 
 
 
@@ -287,8 +366,9 @@ void loop() {
      
      ir_rpm = (round(ir_pulseCount * 60)/COUNT_PULSE_IR); 
  
-     Serial.print("IR_RPM: ");
+     Serial.print("IR_RPM ===============: ");
      Serial.println(ir_rpm);
+     Serial.println();
  
      Serial.print("IR_pulseCount: ");
      Serial.println(ir_pulseCount);
@@ -312,12 +392,13 @@ void loop() {
     // units - граммы
 
     ounces = 0; // Обнуление переменной для накопления значений
-    ounces = scale.get_units(15); // Каждый вызов функции возвращает среднее значение из 5 измерений
+    ounces = scale.get_units(15); // Каждый вызов функции возвращает среднее значение из 15 измерений
     units = round(ounces * 0.035274); // Конвертация в граммы (1 унция = 28.3495 грамм), округляем до целых
     // Вывод в Serial Monitor для отладки
-    Serial.print("Weight: ");
+    Serial.print("Weight =================: ");
     Serial.print(units, 2); // Вывод с двумя знаками после запятой
     Serial.println(" grams");
+    Serial.println();
   
     // // Расчет мощности Инфракрасный датчик
     Power_Watt_ir = units * 0.00981 * ir_rpm * 0.1047;
@@ -368,6 +449,15 @@ void loop() {
      // Публикация в MQTT топик
      client.publish("/UmbrellaEsp32/data", jsonBuffer);
       
+
+
+    // lcd.setCursor(8, 0);
+    // lcd.print(ir_pulseCount);
+
+    // lcd.setCursor(8, 1);
+    // lcd.print(ir_pulseCount);    
+
+
      holl_pulseCount = 0;            // Сбрасываем счетчик датчика Холла
      holl_pulseCount_ditry = 0;
 
@@ -376,6 +466,7 @@ void loop() {
 
      lastMillis_rpm = millis(); // Обновляем время
      count_fps=0;               // Сбрасываем счетчик fps
+
 
      attachInterrupt(digitalPinToInterrupt(hallPin), handleInterrupt, FALLING); // Включаем прерывания датчика Холла  
      attachInterrupt(digitalPinToInterrupt(ir_Pin), ir_handleInterrupt, FALLING); // Включаем прерывания Инфракрасного датчика
