@@ -381,15 +381,15 @@ void loop() {
 
     // Датчик инфракрасный - КОНЕЦ
 
-    // bool reading = digitalRead(BUTTON_PIN); // Чтение текущего состояния кнопки
-    //   if (reading == LOW)
-    //   {
-    //     // delay(20);
-    //     if (reading == LOW)
-    //     {
-    //       tareScale(); // Вызов функции обнуления весов
-    //     }
-    //   }
+    bool reading = digitalRead(BUTTON_PIN); // Чтение текущего состояния кнопки
+      if (reading == LOW)
+      {
+        // delay(20);
+        if (reading == LOW)
+        {
+          tareScale(); // Вызов функции обнуления весов
+        }
+      }
 
 
     // Измерение веса с усреднением
