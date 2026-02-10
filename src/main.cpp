@@ -320,7 +320,7 @@ void loop() {
   int_PW_holl=0;
 
   // Временной флаг для соединения по MQTT
-  lastMillis_mqtt = millis();
+  // lastMillis_mqtt = millis(); // это тут зачем, оно не дает зайти в условие больше 3000 для возобновлени коннекта MQTT
 
   // publish a message roughly every second.
   // По моему тут коннектимся к МКУТТ серверу на чаще раза во сколько то времени, если коннекта нету
