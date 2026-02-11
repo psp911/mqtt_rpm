@@ -380,9 +380,9 @@ void loop() {
           tareScale(); // Вызов функции обнуления весов
           lcd.setCursor(0,1);
 	        lcd.print("Tenzo : Reset...");
-          delay(1000);
+          delay(2000);
           lcd.setCursor(0,1);
-	        lcd.print("Tenzo :           ");
+	        lcd.print("Tenzo : 0         ");
         }
       }
 
