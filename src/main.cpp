@@ -1,26 +1,19 @@
-// This example uses an ESP32 Development Board
-// to connect to shiftr.io.
-//
-// You can check on your device after a successful
-// connection here: https://www.shiftr.io/try.
-//
-// by Joël Gähwiler
-// https://github.com/256dpi/arduino-mqtt
+// Программа измеряет обороты и силу на реактивной штанге
 
-
-
-// Датчик Холла
-
-
+// Если нужен Wi-Fi и MQTT, то использовать эти библиотеки
 #include <WiFi.h>
 #include <MQTT.h>
+
 #include <ArduinoJson.h>
 #include <cmath> // Необходимо для round, ceil, floor, trunc 
-// #include <LiquidCrystal_I2C.h> // Двухстрочный дисплей 1602
+#include <LiquidCrystal_I2C.h> // Двухстрочный дисплей 1602
 #include "HX711.h"       // Библиотека для работы с АЦП HX711
 // Создание объектов
 HX711 scale;                      // Объект для работы с тензодатчиком
-// LiquidCrystal_I2C lcd(0x27, 16, 2); // set the LCD address to 0x27 for a 16 chars and 2 line display
+LiquidCrystal_I2C lcd(0x27, 16, 2); // set the LCD address to 0x27 for a 16 chars and 2 line display
+
+// Будем ли пользовать Wi-Fi и публиковать в MQTT
+boolean wifi_mqtt_ON = false; // Значение, использовать ли коннект и публикацию
 
 // Определение пинов подключения весов
 #define DT_PIN 21          // Пин DATA (DT) HX711
@@ -79,6 +72,8 @@ const char ssid[] = "Keenetic-0606";
 const char pass[] = "hkCXMKY9";
 
 
+// const char ssid[] = "OpenWrt";
+// const char pass[] = "9546595465Openwrt!";
 
 
 /* 
@@ -94,7 +89,10 @@ const char MQTT_PASSWORD[] = "9546595465Psp!"; // CHANGE IT IF REQUIRED, empty i
 //const char MQTT_BROKER_ADRRESS[] = "91.149.232.230";  // CHANGE TO MQTT BROKER'S ADDRESS
 // const char MQTT_BROKER_ADRRESS[] = "192.168.100.237"; // CHANGE TO MQTT BROKER'S ADDRESS
 // const char MQTT_BROKER_ADRRESS[] = "192.168.10.72"; // CHANGE TO MQTT BROKER'S ADDRESS
-const char MQTT_BROKER_ADRRESS[] = "192.168.20.152"; // CHANGE TO MQTT BROKER'S ADDRESS
+// const char MQTT_BROKER_ADRRESS[] = "192.168.20.152"; // CHANGE TO MQTT BROKER'S ADDRESS
+
+const char MQTT_BROKER_ADRRESS[] = "192.168.1.170"; // CHANGE TO MQTT BROKER'S ADDRESS
+
 
 const int MQTT_PORT = 1883;
 //const int MQTT_PORT = 8883;
@@ -105,7 +103,6 @@ const char MQTT_PASSWORD[] = "telegraf"; // CHANGE IT IF REQUIRED, empty if not 
 
 //Внешний датчик Холла
 const int hallPin = 25;     // Пин, к которому подключен DO датчика
-
 int hallState = 0;          // Состояние датчика Холла
 volatile unsigned int holl_pulseCount = 0; // Счетчик импульсов датчика Холла
 volatile unsigned int holl_pulseCount_ditry = 0; // Счетчик импульсов датчика Холла c Дребезгом
@@ -195,9 +192,11 @@ volatile unsigned long last_turnover = 0;
 volatile unsigned long turnover_time = 0; 
 
 
-const int drebezg_time = 200;       // Длина времени на дребезг, микросекунд
+const int drebezg_time = 150;       // Длина времени на дребезг, микросекунд
                                     // 20000 микросекунд = 50 Гц = 3000 об\мин
                                     // 5000 vмикросекунд = 200 Гц = 12000 об\мин
+                                    // При 10000 об/мин и 22 магнитах импульсов 3666, 
+                                    //         интервал 272 мкс между импульсами
 
 // Прерывание: срабатывает при появлении магнита
 void IRAM_ATTR handleInterrupt() {
@@ -233,7 +232,7 @@ void setup() {
   
   Serial.begin(9600);
  
-/* 
+
   Wire.setPins(sda_pin, scl_pin); // Set the I2C pins before begin
 	lcd.init(sda_pin, scl_pin); // initialize the lcd to use user defined I2C pins
 
@@ -245,22 +244,27 @@ void setup() {
   delay(1000);
 	lcd.backlight();            // Включение подсветки
 	lcd.setCursor(0,0);         // Установить курсор
-	lcd.print("Welcome!!!:");
-	delay(1000);
-
- */
+	lcd.print("Welcome!");
+	delay(3000);
 
 
-  Serial.println("Мы тут 10 ========");
-  WiFi.begin(ssid, pass);
-  esp_log_level_set("wifi", ESP_LOG_VERBOSE);
-  Serial.println("Мы тут 20 ======== ");
-  client.begin(MQTT_BROKER_ADRRESS, net);  
-  Serial.println("Мы тут 30 ======== ");
-  client.onMessage(messageReceived);
-  Serial.println("Мы тут 40 ======== ");
+  // Если используем WIFI то давайте подключаться к WiFi и MQTT - НАЧАЛО
+  if (wifi_mqtt_ON){
+    // Serial.println("Мы тут 10 ========");
+    WiFi.begin(ssid, pass);
+    esp_log_level_set("wifi", ESP_LOG_VERBOSE);
 
-  connect();
+    // Serial.println("Мы тут 20 ======== ");
+    client.begin(MQTT_BROKER_ADRRESS, net);  
+
+    // Serial.println("Мы тут 30 ======== ");
+    client.onMessage(messageReceived);
+    
+    // Serial.println("Мы тут 40 ======== ");
+    connect();
+  }
+  // Если используем WIFI то давайте подключаться к WiFi и MQTT - КОНЕЦ
+
 
   // pinMode(ledPin, OUTPUT);
   pinMode(hallPin, INPUT); // Датчик A3144 выдает логический сигнал
@@ -277,7 +281,7 @@ void setup() {
 
   // Далее для тензодатчика
   pinMode(BUTTON_PIN, INPUT_PULLUP); // Подтяжка к питанию (кнопка замыкает на GND)
-  Serial.println("Мы тут 4050 ======== Идет инициализация тензодатчика");
+  // Serial.println("Мы тут 4050 ======== Идет инициализация тензодатчика");
   // // Инициализация TFT-дисплея
   // tft.init();                  // Инициализация дисплея
   // tft.setRotation(3);          // Установка ориентации (3 = 180 градусов)
@@ -286,55 +290,66 @@ void setup() {
   // tft.setTextSize(1);
   // tft.setCursor(10, 10);
   // tft.println("Init..."); // Сообщение о инициализации
+	lcd.setCursor(0,1);         // Установить курсор
+	lcd.print("Init tenzo...");
 
-
-  delay(500);
+  delay(1000);
 
   // // Инициализация весов
   scale.begin(DT_PIN, SCK_PIN);        // Инициализация HX711 с указанием пинов
 
-  Serial.println("Мы тут 4100 ======== Идет инициализация тензодатчика");
-
+  // Serial.println("Мы тут 4100 ======== Идет инициализация тензодатчика");
   scale.set_scale();                             // Установка масштаба (без коэффициента)
-  Serial.println("Мы тут 4200 ======== Идет инициализация тензодатчика");
+
+  // Serial.println("Мы тут 4200 ======== Идет инициализация тензодатчика");
   scale.tare();                                     // Первоначальное обнуление веса
-  Serial.println("Мы тут 4300 ======== Идет инициализация тензодатчика");
+
+  // Serial.println("Мы тут 4300 ======== Идет инициализация тензодатчика");
   scale.set_scale(calibration_factor); // Установка калибровочного коэффициента
 
-  Serial.println("Мы тут 1000 ======== Выход из Setup");
+  // Serial.println("Мы тут 1000 ======== Выход из Setup");
+  lcd.clear();
+	lcd.setCursor(0,0);         // Установить курсор
+	lcd.print("Congratulation!");
+	lcd.setCursor(0,1);         // Установить курсор
+	lcd.print("Init completed!");
   
-
-
-
+  delay(2000);
+  lcd.clear();
+  lcd.print("Start of measurements...");
+  delay(2000);
+  lcd.clear();
+  
+  lcd.setCursor(0,0);         // Установить курсор
+	lcd.print("IR RPM:");
+	lcd.setCursor(0,1);
+	lcd.print("Tenzo :");
 }
 
 
 void loop() {
 
-  client.loop();
-  //delay(500);  // <- fixes some issues with WiFi stability
+  
   count_fps=count_fps+1; // счетчик итераций
   Power_Watt_ir = 0; // Сброс мощности
   int_PW_ir=0;
   Power_Watt_holl = 0; // Сброс мощности
   int_PW_holl=0;
 
-  // Временной флаг для соединения по MQTT
-  // lastMillis_mqtt = millis(); // это тут зачем, оно не дает зайти в условие больше 3000 для возобновлени коннекта MQTT
 
-  // publish a message roughly every second.
-  // По моему тут коннектимся к МКУТТ серверу на чаще раза во сколько то времени, если коннекта нету
-  if (millis() - lastMillis_mqtt >= 3000) {
-    lastMillis_mqtt = millis();
-    
-    Serial.println("Мы тут 2000 ======== тут коннектимся к МКУТТ серверу на");
-
-    if (!client.connected()) {
-      connect();
+  //// ======= Этот блок отвечает за коннект к MQTT и Wi-Fi ========   НАЧАЛО  ///////
+  if (wifi_mqtt_ON){
+    client.loop();
+    // Тут коннектимся к MQTT серверу на чаще раза во сколько то времени, если коннекта нету
+    if (millis() - lastMillis_mqtt >= 3000) {
+      lastMillis_mqtt = millis();    
+      // Serial.println("Мы тут 2000 ======== тут коннектимся к МКУТТ серверу на");
+      if (!client.connected()) {
+        connect();
+      }
     }
-
-   }
-    
+  }
+  //// ======= Этот блок отвечает за коннект к MQTT и Wi-Fi ========    КОНЕЦ  ///////
 
    // Расчет всего каждую секунду
    if (millis() - lastMillis_rpm >= 1000) {
@@ -347,37 +362,12 @@ void loop() {
 
      holl_rpm = round((holl_pulseCount * 60)/COUNT_MAGNIT); 
  
-     Serial.print("holl_rpm =================================== holl_rpm : ");
-     Serial.println(holl_rpm);
-     Serial.println();
-    //  Serial.print("количество магнитов: ");
-    //  Serial.println(COUNT_MAGNIT);
- 
-     Serial.print("holl_pulseCount: ");
-     Serial.println(holl_pulseCount);
- 
-     Serial.print("holl_pulseCount_ditry: ");
-     Serial.println(holl_pulseCount_ditry);
-
-     Serial.print("count_fps: ");
-     Serial.println(count_fps);
-
-
-
 
     // Датчик инфракрасный - НАЧАЛО
      
      ir_rpm = (round(ir_pulseCount * 60)/COUNT_PULSE_IR); 
  
-     Serial.print("IR_RPM ============================================== IR_RPM : ");
-     Serial.println(ir_rpm);
-     Serial.println();
- 
-     Serial.print("IR_pulseCount: ");
-     Serial.println(ir_pulseCount);
- 
-     Serial.print("ir_pulseCount_ditry: ");
-     Serial.println(ir_pulseCount_ditry);
+
 
     // Датчик инфракрасный - КОНЕЦ
 
@@ -388,6 +378,11 @@ void loop() {
         if (reading == LOW)
         {
           tareScale(); // Вызов функции обнуления весов
+          lcd.setCursor(0,1);
+	        lcd.print("Tenzo : Reset...");
+          delay(1000);
+          lcd.setCursor(0,1);
+	        lcd.print("Tenzo :           ");
         }
       }
 
@@ -399,17 +394,11 @@ void loop() {
     ounces = 0; // Обнуление переменной для накопления значений
     ounces = scale.get_units(15); // Каждый вызов функции возвращает среднее значение из 15 измерений
     units = round(ounces * 0.035274); // Конвертация в граммы (1 унция = 28.3495 грамм), округляем до целых
-    // Вывод в Serial Monitor для отладки
-    Serial.print("Вес на тензодатчике, грамм =================: ");
-    Serial.print(units, 2); // Вывод с двумя знаками после запятой
-    Serial.println();
-  
+
     // // Расчет мощности Инфракрасный датчик
     Power_Watt_ir = units * 0.00981 * ir_rpm * 0.1047;
     int_PW_ir = round(Power_Watt_ir);
-    Serial.print("Power_Watt_ir: ");
-    Serial.print(Power_Watt_ir, 2); // Вывод с двумя знаками после запятой
-    Serial.println(" Watt");
+
 
     // char buffer[12]; // Буфер достаточного размера
     // sprintf(buffer, "%i", int_PW_ir); // %lu для unsigned long
@@ -418,14 +407,39 @@ void loop() {
     // // Расчет мощности датчик Холла
     Power_Watt_holl = units * 0.00981 * holl_rpm * 0.1047;
     int_PW_holl = round(Power_Watt_holl);
+
+
+    /* 
+    // =========================================================================== //
+    //                         вывод данных в терминал                             //
+    // =========================================================================== //
+    Serial.print("holl_rpm =================================== holl_rpm : ");
+    Serial.println(holl_rpm);
+    Serial.println(); 
+    Serial.print("holl_pulseCount: ");
+    Serial.println(holl_pulseCount); 
+    Serial.print("holl_pulseCount_ditry: ");
+    Serial.println(holl_pulseCount_ditry);
+    Serial.print("count_fps: ");
+    Serial.println(count_fps);
+    Serial.print("Вес на тензодатчике, грамм =================: ");
+    Serial.print(units, 2); // Вывод с двумя знаками после запятой
+    Serial.println();
+    Serial.print("Power_Watt_ir: ");
+    Serial.print(Power_Watt_ir, 2); // Вывод с двумя знаками после запятой
+    Serial.println(" Watt");
+    Serial.print("IR_RPM ============================================== IR_RPM : ");
+    Serial.println(ir_rpm);
+    Serial.println();
+    Serial.print("IR_pulseCount: ");
+    Serial.println(ir_pulseCount);
+    Serial.print("ir_pulseCount_ditry: ");
+    Serial.println(ir_pulseCount_ditry);
     Serial.print("Power_Watt_holl: ");
     Serial.print(Power_Watt_holl, 2); // Вывод с двумя знаками после запятой
     Serial.println(" Watt");
 
-    // // char buffer[12]; // Буфер достаточного размера
-    // sprintf(buffer, "%i", int_PW_holl); // %lu для unsigned long
-    // client.publish("/int_PW_holl", buffer);
-
+ */
 
     // Создание JSON документа
     StaticJsonDocument<300> doc;
@@ -446,13 +460,18 @@ void loop() {
 
     
 
-
     char jsonBuffer[300];
     serializeJson(doc, jsonBuffer); // Преобразование в строку
 
-     // Публикация в MQTT топик
-     client.publish("/UmbrellaEsp32/data", jsonBuffer);
-      
+
+    if (wifi_mqtt_ON){
+        // Публикация в MQTT топик
+        client.publish("/UmbrellaEsp32/data", jsonBuffer);
+    }
+
+
+    serializeJson(doc, Serial); // выдача в порт UART
+    Serial.println(); // Перенос строки для удобства
 
 
     // lcd.setCursor(8, 0);
@@ -471,6 +490,17 @@ void loop() {
      lastMillis_rpm = millis(); // Обновляем время
      count_fps=0;               // Сбрасываем счетчик fps
 
+    lcd.setCursor(8, 0);
+    // String str = String(ir_rpm); // Результат: "12345"
+    // lcd.print(round(ir_rpm));
+    String s = String((int)round(ir_rpm)); // Результат: "4"
+    lcd.print(s);
+    lcd.print("    ");
+
+    lcd.setCursor(8, 1);
+    s = String((int)round(units)); // Результат: "4"
+    lcd.print(s); 
+    lcd.print("       ");
 
      attachInterrupt(digitalPinToInterrupt(hallPin), handleInterrupt, FALLING); // Включаем прерывания датчика Холла  
      attachInterrupt(digitalPinToInterrupt(ir_Pin), ir_handleInterrupt, FALLING); // Включаем прерывания Инфракрасного датчика
