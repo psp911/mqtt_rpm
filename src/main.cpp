@@ -282,15 +282,7 @@ void setup() {
   // Далее для тензодатчика
   pinMode(BUTTON_PIN, INPUT_PULLUP); // Подтяжка к питанию (кнопка замыкает на GND)
   // Serial.println("Мы тут 4050 ======== Идет инициализация тензодатчика");
-  // // Инициализация TFT-дисплея
-  // tft.init();                  // Инициализация дисплея
-  // tft.setRotation(3);          // Установка ориентации (3 = 180 градусов)
-  // tft.fillScreen(TFT_BLACK);   // Очистка экрана
-  // tft.setTextColor(TFT_GREEN); // Зеленый цвет для лучшей читаемости
-  // tft.setTextSize(1);
-  // tft.setCursor(10, 10);
-  // tft.println("Init..."); // Сообщение о инициализации
-	lcd.setCursor(0,1);         // Установить курсор
+  lcd.setCursor(0,1);         // Установить курсор
 	lcd.print("Init tenzo...");
 
   delay(1000);
@@ -473,14 +465,6 @@ void loop() {
     serializeJson(doc, Serial); // выдача в порт UART
     Serial.println(); // Перенос строки для удобства
 
-
-    // lcd.setCursor(8, 0);
-    // lcd.print(ir_pulseCount);
-
-    // lcd.setCursor(8, 1);
-    // lcd.print(ir_pulseCount);    
-
-
      holl_pulseCount = 0;            // Сбрасываем счетчик датчика Холла
      holl_pulseCount_ditry = 0;
 
@@ -491,14 +475,12 @@ void loop() {
      count_fps=0;               // Сбрасываем счетчик fps
 
     lcd.setCursor(8, 0);
-    // String str = String(ir_rpm); // Результат: "12345"
-    // lcd.print(round(ir_rpm));
-    String s = String((int)round(ir_rpm)); // Результат: "4"
+    String s = String((int)round(ir_rpm)); // Результат: целое число
     lcd.print(s);
     lcd.print("    ");
 
     lcd.setCursor(8, 1);
-    s = String((int)round(units)); // Результат: "4"
+    s = String((int)round(units)); // Результат: целое число
     lcd.print(s); 
     lcd.print("       ");
 
