@@ -212,7 +212,7 @@ void IRAM_ATTR handleInterrupt() {
 volatile unsigned long ir_turnover = 0;
 volatile unsigned long ir_last_turnover = 0;
 
-const int ir_drebezg_time = 5000;       // Длина времени на дребезг, микросекунд датчика Инфракрасного
+const int ir_drebezg_time = 5000;     // Длина времени на дребезг, микросекунд датчика Инфракрасного
                                       // 20000 микросекунд = 50 Гц = 3000 об\мин
                                       // 5000 vмикросекунд = 200 Гц = 12000 об\мин
 
